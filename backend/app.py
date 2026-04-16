@@ -8,7 +8,6 @@ from scraper import get_rainfall_metadata, create_animated_video_from_data
 
 app = FastAPI()
 
-# Configuración de CORS para desarrollo
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -16,20 +15,44 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Definir rutas absolutas respecto a este archivo
+# Definir rutas absolutas respecto a este archivo (backend/)
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-# La carpeta static está dentro de backend
+
+# La carpeta static ahora contendrá tanto archivos del sistema como la UI
 STATIC_DIR = os.path.join(BASE_DIR, "static")
-# La carpeta frontend está fuera de backend (o un nivel arriba)
-FRONTEND_DIR = os.path.join(os.path.dirname(BASE_DIR), "frontend")
+# Nueva ruta consolidada para el frontend
+FRONTEND_DIR = os.path.join(STATIC_DIR, "ui")
 
 os.makedirs(STATIC_DIR, exist_ok=True)
+os.makedirs(FRONTEND_DIR, exist_ok=True)
 
-# Montar archivos estáticos del sistema (mapas, videos generados)
+# 1. Endpoints de API (Primero para evitar que el mount los tape)
+@app.get("/api/generar_pieza")
+async def generar(background_tasks: BackgroundTasks):
+    top_5, texto, imagen_url = get_rainfall_metadata()
+    # Path local para el mapa
+    map_local_path = os.path.join(STATIC_DIR, "mapa_lluvias.jpg")
+    background_tasks.add_task(video_generation_task, top_5, map_local_path)
+    return {
+        "texto": texto,
+        "imagen_url": imagen_url,
+        "video_status": "processing"
+    }
+
+@app.get("/api/video_status")
+def get_video_status():
+    if video_status["ready"]:
+        return {"status": "ready", "video_url": "/static/historia_lluvias.mp4"}
+    if video_status["error"]:
+        return {"status": "error", "message": video_status["error"]}
+    return {"status": "processing"}
+
+# 2. Archivos estáticos del sistema (Mapas/Videos)
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
-# Montar archivos del frontend (html, js, css)
-app.mount("/ui", StaticFiles(directory=FRONTEND_DIR), name="ui")
+# 3. Frontend unificado (Servido desde la raíz)
+# Al estar dentro de static/ui, es totalmente autónomo en Render
+app.mount("/", StaticFiles(directory=FRONTEND_DIR, html=True), name="frontend")
 
 video_status = {"ready": False, "error": None}
 
@@ -47,29 +70,3 @@ def video_generation_task(top_5, map_path):
     except Exception as e:
         print(f"Error en tarea de video: {e}")
         video_status["error"] = str(e)
-
-# Ruta raíz para servir la aplicación
-@app.get("/")
-async def read_index():
-    return FileResponse(os.path.join(FRONTEND_DIR, "index.html"))
-
-@app.get("/api/generar_pieza")
-async def generar(background_tasks: BackgroundTasks):
-    top_5, texto, imagen_url = get_rainfall_metadata()
-    
-    # El mapa se descarga en backend/static/mapa_lluvias.jpg
-    background_tasks.add_task(video_generation_task, top_5, os.path.join(STATIC_DIR, "mapa_lluvias.jpg"))
-    
-    return {
-        "texto": texto,
-        "imagen_url": imagen_url,
-        "video_status": "processing"
-    }
-
-@app.get("/api/video_status")
-def get_video_status():
-    if video_status["ready"]:
-        return {"status": "ready", "video_url": "/static/historia_lluvias.mp4"}
-    if video_status["error"]:
-        return {"status": "error", "message": video_status["error"]}
-    return {"status": "processing"}
