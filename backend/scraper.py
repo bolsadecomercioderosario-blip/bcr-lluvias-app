@@ -5,12 +5,26 @@ from PIL import Image, ImageDraw, ImageFont
 import numpy as np
 from moviepy.video.io.ImageSequenceClip import ImageSequenceClip
 from moviepy.video.io.VideoFileClip import VideoFileClip
+from datetime import datetime
 
 # Rutas relativas para portabilidad (Render/GitHub)
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 ASSETS_DIR = os.path.join(BASE_DIR, "assets")
 STATIC_DIR = os.path.join(BASE_DIR, "static")
 FONT_PATH = os.path.join(ASSETS_DIR, "Adobe Garamond Pro Semibold.otf")
+
+def get_day_labels():
+    is_monday = datetime.now().weekday() == 0
+    if is_monday:
+        return {
+            "tweet_header": "🌧️ Les compartimos las lluvias acumuladas en la región núcleo durante las últimas 72 horas, registradas desde el viernes a las 8 AM hasta hoy a las 8 AM:",
+            "video_subtitle": "Mayores registros de las últimas 72 h"
+        }
+    else:
+        return {
+            "tweet_header": "🌧️ Les compartimos las lluvias acumuladas en la región núcleo durante las últimas 24 horas, registradas desde ayer a las 8 AM hasta hoy a las 8 AM:",
+            "video_subtitle": "Mayores registros de las últimas 24 h"
+        }
 
 def ensure_font(size=30):
     try:
@@ -68,8 +82,9 @@ def create_animated_video_from_data(top_5, map_path, output_mp4=None):
         draw = ImageDraw.Draw(frame)
         
         # Títulos
+        labels = get_day_labels()
         draw.text((W//2, 90), "Lluvias en la región núcleo", font=font_title, fill="white", anchor="mm")
-        draw.text((W//2, 130), "Mayores registros de las últimas 24 h", font=font_subtitle, fill="#dddddd", anchor="mm")
+        draw.text((W//2, 130), labels["video_subtitle"], font=font_subtitle, fill="#dddddd", anchor="mm")
         
         # Top 5 dinámico
         y_text = 210
@@ -120,7 +135,9 @@ def create_animated_video_legacy(top_5, map_path, output_mp4):
         t = f / FPS
         frame = Image.new('RGB', (W, H), color=bg_color)
         draw = ImageDraw.Draw(frame)
+        labels = get_day_labels()
         draw.text((W//2, 100), "Lluvias en la región núcleo", font=font_title, fill="white", anchor="mm")
+        draw.text((W//2, 140), labels["video_subtitle"], font=font_subtitle, fill="#dddddd", anchor="mm")
         
         y_text = 250
         for i, d in enumerate(top_5):
@@ -156,7 +173,8 @@ def get_rainfall_metadata():
                 pass
     data.sort(key=lambda x: x['mm'], reverse=True)
     top5 = data[:5]
-    texto_tweet = "☔️ Registros de lluvias acumuladas en la región núcleo (Últimas 24h):\n\n"
+    labels = get_day_labels()
+    texto_tweet = f"{labels['tweet_header']}\n\n"
     for d in top5:
         texto_tweet += f"- {d['localidad']}: {d['mm']} mm\n"
     texto_tweet += "\nMapas y más info en:\nhttps://www.bcr.com.ar/es/mercados/gea/clima/clima-gea/lluvias"

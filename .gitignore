@@ -1,0 +1,9 @@
+__pycache__/
+*.pyc
+backend/static/historia_lluvias_*.mp4
+final_screenshot.png
+historia_final.mp4
+mapa_final.jpg
+ui_screenshot.png
+.env
+backend/static/temp_frame.jpg
